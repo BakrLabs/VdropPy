@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VDROP — Video Downloader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent: #e8ff47;
+    --accent2: #ff6b35;
+    --text: #f0f0f5;
+    --muted: #6b6b80;
+    --success: #4eff91;
+    --radius: 12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,255,71,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,255,71,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    margin-bottom: 56px;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(48px, 10vw, 80px);
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-dot {
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+    margin-bottom: 8px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.7; }
+  }
+
+  .tagline {
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* URL Input */
+  .input-section {
+    margin-bottom: 32px;
+  }
+
+  .input-label {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .input-wrap {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .url-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .url-input::placeholder { color: var(--muted); }
+
+  .url-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232,255,71,0.1);
+  }
+
+  .btn-fetch {
+    background: var(--accent);
+    color: #0a0a0f;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    padding: 16px 28px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-fetch:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(232,255,71,0.3);
+  }
+
+  .btn-fetch:active { transform: translateY(0); }
+  .btn-fetch:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Platforms badge */
+  .platforms {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  .platform-badge {
+    font-size: 11px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  /* Info card */
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+    display: none;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .info-card.visible { display: block; }
+
+  .info-meta {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .info-thumb {
+    width: 120px;
+    height: 68px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+    background: var(--border);
+  }
+
+  .info-details { flex: 1; min-width: 0; }
+
+  .info-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .info-sub {
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .playlist-badge {
+    display: inline-block;
+    background: rgba(232,255,71,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(232,255,71,0.3);
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    margin-top: 6px;
+    letter-spacing: 0.08em;
+  }
+
+  /* Options */
+  .options-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+    display: none;
+    animation: slideIn 0.3s ease;
+  }
+
+  .options-section.visible { display: block; }
+
+  .options-title {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* Toggle */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .toggle-row:last-child { border-bottom: none; }
+
+  .toggle-label {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .toggle-icon { font-size: 18px; }
+
+  .toggle-switch {
+    width: 44px;
+    height: 24px;
+    background: var(--border);
+    border-radius: 12px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+
+  .toggle-switch.on { background: var(--accent); }
+
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    top: 3px;
+    left: 3px;
+    transition: transform 0.2s;
+  }
+
+  .toggle-switch.on::after { transform: translateX(20px); }
+
+  /* Quality selector */
+  .quality-wrap {
+    margin-top: 16px;
+  }
+
+  .quality-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .quality-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .quality-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .quality-btn:hover { border-color: var(--muted); }
+
+  .quality-btn.selected {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0a0a0f;
+    font-weight: 500;
+  }
+
+  /* Download button */
+  .btn-download {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent2), #ff3366);
+    color: white;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.05em;
+    padding: 18px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    display: none;
+  }
+
+  .btn-download.visible { display: block; }
+  .btn-download:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(255,107,53,0.4); }
+  .btn-download:active { transform: translateY(0); }
+  .btn-download:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Progress */
+  .progress-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-top: 24px;
+    display: none;
+    animation: slideIn 0.3s ease;
+  }
+
+  .progress-section.visible { display: block; }
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .progress-status {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .progress-pct {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--accent);
+  }
+
+  .progress-bar-bg {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 3px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  .progress-meta {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    gap: 16px;
+  }
+
+  /* Files list */
+  .files-list {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(232,255,71,0.05);
+    border: 1px solid rgba(232,255,71,0.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    animation: slideIn 0.3s ease;
+  }
+
+  .file-name {
+    font-size: 13px;
+    color: var(--text);
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 12px;
+  }
+
+  .file-size {
+    font-size: 12px;
+    color: var(--muted);
+    margin-right: 12px;
+    white-space: nowrap;
+  }
+
+  .btn-dl-file {
+    background: var(--accent);
+    color: #0a0a0f;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.1s;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+
+  .btn-dl-file:hover { transform: scale(1.05); }
+
+  /* Error */
+  .error-box {
+    background: rgba(255,50,50,0.1);
+    border: 1px solid rgba(255,50,50,0.3);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    color: #ff7070;
+    font-size: 13px;
+    margin-top: 16px;
+    display: none;
+  }
+
+  .error-box.visible { display: block; animation: slideIn 0.2s ease; }
+
+  /* Success status */
+  .success-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--success);
+    margin-bottom: 12px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+  }
+
+  .dot-success {
+    width: 8px;
+    height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0,0,0,0.3);
+    border-top-color: #0a0a0f;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .footer {
+    margin-top: 80px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-top: 1px solid var(--border);
+    padding-top: 32px;
+  }
+
+  .footer-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .footer-logo {
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.06em;
+  }
+
+  .footer-divider { color: var(--border); }
+
+  .footer-copy {
+    margin-bottom: 8px;
+    letter-spacing: 0.1em;
+  }
+
+  .footer-disclaimer {
+    font-size: 10px;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.7;
+    color: #44445a;
+    text-transform: none;
+    letter-spacing: 0.04em;
+  }
+
+  /* BakrLabs header bar */
+  .bakrlabs-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .bakrlabs-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text);
+    letter-spacing: 0.06em;
+  }
+
+  .bakrlabs-tag {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="bakrlabs-bar">
+      <span class="bakrlabs-name">⬡ BakrLabs</span>
+      <span class="bakrlabs-tag">Open Tools for Everyone</span>
+    </div>
+    <div class="logo">
+      VDROP <span class="logo-dot"></span>
+    </div>
+    <p class="tagline">YouTube · Facebook · 1000+ sites · Playlists · MP3</p>
+  </header>
+
+  <!-- URL Input -->
+  <div class="input-section">
+    <p class="input-label">Paste URL</p>
+    <div class="input-wrap">
+      <input type="text" class="url-input" id="urlInput"
+        placeholder="https://youtube.com/watch?v=... or playlist..." />
+      <button class="btn-fetch" id="btnFetch" onclick="fetchInfo()">Fetch</button>
+    </div>
+    <div class="platforms">
+      <span class="platform-badge">YouTube</span>
+      <span class="platform-badge">Facebook</span>
+      <span class="platform-badge">Instagram</span>
+      <span class="platform-badge">Twitter/X</span>
+      <span class="platform-badge">Vimeo</span>
+      <span class="platform-badge">TikTok</span>
+      <span class="platform-badge">+ more</span>
+    </div>
+  </div>
+
+  <!-- Info Card -->
+  <div class="info-card" id="infoCard">
+    <div class="info-meta">
+      <img class="info-thumb" id="infoThumb" src="" alt="thumbnail" />
+      <div class="info-details">
+        <div class="info-title" id="infoTitle"></div>
+        <div class="info-sub" id="infoUploader"></div>
+        <div class="info-sub" id="infoDuration"></div>
+        <span class="playlist-badge" id="playlistBadge" style="display:none">PLAYLIST</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Options -->
+  <div class="options-section" id="optionsSection">
+    <p class="options-title">Download Options</p>
+
+    <!-- Audio toggle -->
+    <div class="toggle-row" onclick="toggleAudio()">
+      <span class="toggle-label">
+        <span class="toggle-icon">🎵</span> Audio only (MP3)
+      </span>
+      <div class="toggle-switch" id="audioToggle"></div>
+    </div>
+
+    <!-- Quality -->
+    <div class="quality-wrap" id="qualityWrap">
+      <p class="quality-label">⚡ Video Quality</p>
+      <div class="quality-grid" id="qualityGrid">
+        <button class="quality-btn selected" data-q="best" onclick="selectQuality(this)">Best</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Download button -->
+  <button class="btn-download" id="btnDownload" onclick="startDownload()">
+    ↓ Download
+  </button>
+
+  <!-- Progress -->
+  <div class="progress-section" id="progressSection">
+    <div class="progress-header">
+      <span class="progress-status" id="progressStatus">Downloading…</span>
+      <span class="progress-pct" id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-meta" id="progressMeta"></div>
+    <div class="files-list" id="filesList"></div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="errorBox"></div>
+
+  <div class="footer">
+    <div class="footer-brand">
+      <span class="footer-logo">⬡ BakrLabs</span>
+      <span class="footer-divider">·</span>
+      <span>VDROP v1.0</span>
+    </div>
+    <div class="footer-copy">
+      © 2025 BakrLabs. Built with yt-dlp. For personal use only.
+    </div>
+    <div class="footer-disclaimer">
+      Respect copyright laws and platform terms of service. Only download content you have the right to access.
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:5000/api';
+let videoInfo = null;
+let isAudioOnly = false;
+let selectedQuality = 'best';
+let currentEventSource = null;
+
+// --- Fetch Info ---
+async function fetchInfo() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+
+  hideError();
+  const btn = document.getElementById('btnFetch');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    const res = await fetch(`${API}/info`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    videoInfo = data;
+    renderInfo(data);
+    renderOptions(data);
+
+    document.getElementById('btnDownload').classList.add('visible');
+  } catch(e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Fetch';
+  }
+}
+
+function renderInfo(d) {
+  const card = document.getElementById('infoCard');
+  document.getElementById('infoTitle').textContent = d.title;
+  document.getElementById('infoUploader').textContent = d.uploader || '';
+  document.getElementById('infoDuration').textContent = d.duration ? formatDuration(d.duration) : '';
+  const thumb = document.getElementById('infoThumb');
+  thumb.src = d.thumbnail || '';
+  thumb.style.display = d.thumbnail ? 'block' : 'none';
+  document.getElementById('playlistBadge').style.display = d.is_playlist ? 'inline-block' : 'none';
+  if (d.is_playlist) {
+    document.getElementById('playlistBadge').textContent = `PLAYLIST · ${d.playlist_count} videos`;
+  }
+  card.classList.add('visible');
+}
+
+function renderOptions(d) {
+  const grid = document.getElementById('qualityGrid');
+  grid.innerHTML = '<button class="quality-btn selected" data-q="best" onclick="selectQuality(this)">Best</button>';
+
+  (d.formats || []).forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'quality-btn';
+    btn.dataset.q = String(f.height);
+    btn.textContent = f.label;
+    btn.onclick = function() { selectQuality(this); };
+    grid.appendChild(btn);
+  });
+
+  document.getElementById('optionsSection').classList.add('visible');
+}
+
+function selectQuality(el) {
+  document.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedQuality = el.dataset.q;
+}
+
+function toggleAudio() {
+  isAudioOnly = !isAudioOnly;
+  const toggle = document.getElementById('audioToggle');
+  const qualityWrap = document.getElementById('qualityWrap');
+  toggle.classList.toggle('on', isAudioOnly);
+  qualityWrap.style.opacity = isAudioOnly ? '0.3' : '1';
+  qualityWrap.style.pointerEvents = isAudioOnly ? 'none' : '';
+}
+
+// --- Start Download ---
+async function startDownload() {
+  hideError();
+  const url = document.getElementById('urlInput').value.trim();
+  const btn = document.getElementById('btnDownload');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Starting…';
+
+  const progSection = document.getElementById('progressSection');
+  progSection.classList.add('visible');
+  document.getElementById('filesList').innerHTML = '';
+  setProgress(0, 'Starting…', '');
+
+  try {
+    const res = await fetch(`${API}/download`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        url,
+        quality: selectedQuality,
+        audio_only: isAudioOnly
+      })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    listenProgress(data.job_id);
+  } catch(e) {
+    showError(e.message);
+    btn.disabled = false;
+    btn.textContent = '↓ Download';
+  }
+}
+
+function listenProgress(jobId) {
+  if (currentEventSource) currentEventSource.close();
+
+  const es = new EventSource(`${API}/progress/${jobId}`);
+  currentEventSource = es;
+
+  es.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+
+    if (d.status === 'downloading') {
+      setProgress(d.percent, 'Downloading…', `${d.speed || ''} · ETA ${d.eta || 0}s`);
+    } else if (d.status === 'processing') {
+      setProgress(99, 'Processing…', 'Almost done…');
+    } else if (d.status === 'done') {
+      setProgress(100, null, '');
+      renderFiles(d.files || [], jobId);
+      es.close();
+      const btn = document.getElementById('btnDownload');
+      btn.disabled = false;
+      btn.textContent = '↓ Download Again';
+    } else if (d.status === 'error') {
+      showError(d.message || 'Download failed');
+      es.close();
+      const btn = document.getElementById('btnDownload');
+      btn.disabled = false;
+      btn.textContent = '↓ Retry';
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+  };
+}
+
+function setProgress(pct, statusText, meta) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  if (statusText !== null) {
+    document.getElementById('progressStatus').textContent = statusText;
+  }
+  document.getElementById('progressMeta').textContent = meta || '';
+}
+
+function renderFiles(files, jobId) {
+  const list = document.getElementById('filesList');
+  list.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'success-label';
+  header.innerHTML = '<span class="dot-success"></span> Ready to download!';
+  list.appendChild(header);
+
+  files.forEach(f => {
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    item.innerHTML = `
+      <span class="file-name">${f.name}</span>
+      <span class="file-size">${formatBytes(f.size)}</span>
+      <a class="btn-dl-file" href="${API}/file/${jobId}/${encodeURIComponent(f.name)}" download="${f.name}">Save</a>
+    `;
+    list.appendChild(item);
+  });
+
+  document.getElementById('progressStatus').textContent = `${files.length} file${files.length > 1 ? 's' : ''} ready`;
+}
+
+// --- Utils ---
+function formatDuration(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+    : `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024**2) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1024**3) return (b/1024**2).toFixed(1) + ' MB';
+  return (b/1024**3).toFixed(2) + ' GB';
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = '⚠ ' + msg;
+  box.classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('errorBox').classList.remove('visible');
+}
+
+// Allow Enter key to fetch
+document.getElementById('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') fetchInfo();
+});
+</script>
+</body>
+</html>
